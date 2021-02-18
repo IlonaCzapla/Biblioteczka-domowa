@@ -8,7 +8,7 @@ go
 
 create table Gatunek
 (id_gatunku int IDENTITY primary key ,
-nazwa_gatunku varchar(50)
+nazwa_gatunku varchar(50) unique
 );
 
 /*  tworzymy tabele Wydawnictwo  */
@@ -16,7 +16,7 @@ nazwa_gatunku varchar(50)
 create table Wydawnictwo
 (
 id_wydawnictwa int IDENTITY primary key,
-nazwa_wydawnictwa varchar(50)
+nazwa_wydawnictwa varchar(50) unique
 );
 
 /*  tworzymy tabele Autor  */
@@ -33,7 +33,7 @@ nazwisko_autora varchar (50) not null
 create table Ksiazki
 ( 
 id_ksiazki int not null identity primary key,
-tytul varchar (100) not null,
+tytul varchar (100) not null unique,
 podtytul varchar(200),
 seria varchar(200),
 rok_wydania int,
@@ -286,7 +286,7 @@ declare @id_gat int
 exec spDodajGatunek @nazwa_gatunku='anglojęzyczne', @id_gatunku=@id_gat output
 select @id_gat as id_gatunku;
 
-/* wywołanie procedury łaczącej Gatunek z ksiaąka */
+/* wywołanie procedury łaczącej Gatunek z książka */
 
 exec spPolaczGatunekZKsiazka @id_gatunku=7, @id_ksiazki=23
 
@@ -298,7 +298,8 @@ select @id_wyd as id_wydawnictwa;
 
 
 /*--wyświelenie  podstawowych danych o książkach */
-
+GO
+CREATE VIEW PodstawoweDaneKsiazki AS
 select k.id_ksiazki
 , k.tytul
 , k.rok_wydania
@@ -312,5 +313,8 @@ left join Gatunek_ksiazki gk on gk.id_ksiazki=k.id_ksiazki
 left join Gatunek g on g.id_gatunku=gk.id_gatunku
 left join Wydawnictwo w on w.id_wydawnictwa=k.id_wydawnictwa
 
+GO
+SELECT * FROM PodstawoweDaneKsiazki
+GO
 
 
