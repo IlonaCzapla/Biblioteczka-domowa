@@ -48,7 +48,7 @@ GO
 CREATE TABLE Opis_fizyczny
 (format_ksiazki VARCHAR(2),
 rodzaj_okladki VARCHAR(10),
-id_ksiazki INT FOREIGN KEY (id_ksiazki) REFERENCES Ksiazki(id_ksiazki) ,
+id_ksiazki INT FOREIGN KEY (id_ksiazki) REFERENCES Ksiazki(id_ksiazki)
 );
 
 /*  tworzymy tabele łączacą Gatunek z Ksiazkami */
@@ -68,7 +68,7 @@ CREATE TABLE Autorzy_ksiazki
 id_ksiazki INT NOT NULL,
 CONSTRAINT PK_Autorzy_ksiazki PRIMARY KEY (id_ksiazki, id_autora),
 CONSTRAINT FK_Autorzy_ksiazki_id_autora FOREIGN KEY (id_autora) REFERENCES Autor(id_autora),
-CONSTRAINT FK_Autorzy_ksiazki_id_ksiazki FOREIGN KEY (id_ksiazki) REFERENCES Ksiazki(id_ksiazki),
+CONSTRAINT FK_Autorzy_ksiazki_id_ksiazki FOREIGN KEY (id_ksiazki) REFERENCES Ksiazki(id_ksiazki)
 );
 
 /* wstawianie danych do tabeli Gatunek */
@@ -167,6 +167,7 @@ CREATE OR ALTER PROCEDURE spDodajKsiazke
 @podtytul VARCHAR(200),
 @rok_wydania INT,
 @id_wydawnictwa INT,
+@seria varchar(200),
 @id_ksiazki INT OUTPUT
 AS
 BEGIN
@@ -206,7 +207,10 @@ BEGIN
 END;
 
 
+
 /* dodanie procedury łaczacej autora i ksiazke*/
+
+
 GO
 CREATE OR ALTER PROCEDURE spPolaczAutoraZKsiazka
 @id_ksiazki INT,
@@ -217,6 +221,7 @@ INSERT INTO Autorzy_ksiazki (id_ksiazki, id_autora) VALUES (@id_ksiazki, @id_aut
 END;
 
 /* dodanie procedury do dodania Gatunku */
+
 GO
 CREATE OR ALTER PROCEDURE spDodajGatunek
 @nazwa_gatunku VARCHAR (50),
@@ -225,11 +230,15 @@ AS
 BEGIN
 	IF EXISTS (SELECT * FROM Gatunek WHERE nazwa_gatunku=@nazwa_gatunku)
 		BEGIN
-		RAISERROR ('Jest już taki gatunek',11,1)
+		PRINT 'Jest już taki gatunek w bazie'
+		SELECT @id_gatunku=id_gatunku FROM Gatunek WHERE nazwa_gatunku=@nazwa_gatunku 
 		END
 	ELSE
-	INSERT INTO Gatunek (nazwa_gatunku) VALUES (@nazwa_gatunku)
-	SELECT @id_gatunku= SCOPE_IDENTITY()
+		BEGIN
+		PRINT 'Nie ma takiego gatunku w bazie'
+		INSERT INTO Gatunek (nazwa_gatunku) VALUES (@nazwa_gatunku)
+		SELECT @id_gatunku= SCOPE_IDENTITY()
+		END
 END;
 
 /* dodanie procedury łaczącej Gatunek z Ksiazka*/
@@ -252,13 +261,16 @@ AS
 BEGIN
 	IF EXISTS (SELECT * FROM Wydawnictwo WHERE nazwa_wydawnictwa=@nazwa_wydawnictwa)
 		BEGIN
-		RAISERROR ('Jest już takie wydawnictwo',11,1)
+		PRINT 'Jest już takie wydawnictwo w bazie'
+		SELECT @nazwa_wydawnictwa= nazwa_wydawnictwa FROM Wydawnictwo WHERE nazwa_wydawnictwa=@nazwa_wydawnictwa
 		END
 	ELSE
-	INSERT INTO Wydawnictwo (nazwa_wydawnictwa) VALUES (@nazwa_wydawnictwa)
-	SELECT @id_wydawnictwa= SCOPE_IDENTITY()
+		BEGIN
+		PRINT 'Nie ma takiego wydawnictwa'
+		INSERT INTO Wydawnictwo (nazwa_wydawnictwa) VALUES (@nazwa_wydawnictwa)
+		SELECT @id_wydawnictwa= SCOPE_IDENTITY()
+		END
 END;
-
 
 
 
@@ -267,7 +279,7 @@ GO
 DECLARE @id_k INT;
 EXEC spDodajKsiazke @isbn='9788310129079', 
 @tytul='Z mucha na luzie ćwiczymy buzie, czyli zabawy logopedyczne dla dzieci',  @rok_wydania=2015, @id_ksiazki=@id_k OUTPUT, 
-@podtytul= NULL , @id_wydawnictwa=8;
+@podtytul= NULL , @id_wydawnictwa=8, @seria=null;
 SELECT @id_k AS id_ksiazki;
 
 /* wywołanie procedury spDodajAutora */
@@ -321,5 +333,83 @@ LEFT JOIN Wydawnictwo w ON w.id_wydawnictwa=k.id_wydawnictwa
 GO
 SELECT * FROM PodstawoweDaneKsiazki
 GO
+/*
+SELECT * FROM  Ksiazki
+SELECT * FROM Gatunek_ksiazki
+SELECT * FROM Gatunek
+*/
 
+
+/* Dodanie kolumny Liczba ksiazek */
+go
+ALTER TABLE Gatunek ADD Liczba_ksiazek int not null
+constraint DF_Gatunek_Liczba_ksiazek default (0)
+go
+/* obliczenie liczby ksiazek */
+go
+UPDATE Gatunek 
+SET Liczba_ksiazek=
+(
+SELECT COUNT (*) FROM Gatunek_ksiazki GK WHERE GK.id_gatunku= Gatunek.id_gatunku
+)
+SELECT * FROM Gatunek
+select * from Gatunek_ksiazki
+go
+/* Utworzenie triggera który uaktualnia liczbę ksiązek  danego gatunku */
+GO
+CREATE OR ALTER TRIGGER TRG_GATUNEK_KSIAZKI_LICZBA_KSIAZEK ON DBO.Gatunek_ksiazki AFTER INSERT, UPDATE, DELETE
+AS
+
+BEGIN
+SET NOCOUNT ON
+UPDATE Gatunek 
+SET Liczba_ksiazek=
+(
+SELECT COUNT (*) FROM Gatunek_ksiazki GK WHERE GK.id_gatunku= Gatunek.id_gatunku
+)
+WHERE id_gatunku IN
+(
+SELECT DISTINCT id_gatunku  FROM inserted
+UNION
+SELECT DISTINCT id_gatunku FROM deleted
+)
+END;
+GO
+-- Spr id wydawnicta
+SELECT * FROM Wydawnictwo
+/* Dodanie książki, wywołanie procedury DodajKsiazke */
+GO
+DECLARE @id_k INT;
+EXEC spDodajKsiazke @isbn='9788363696030', 
+@tytul='8+2 i ciężarówka',  @rok_wydania=2015, @id_ksiazki=@id_k OUTPUT, 
+@podtytul= NULL , @id_wydawnictwa=10, @seria ='8+2'
+SELECT @id_k AS id_ksiazki;
+
+-- spr czy książka się dodała
 select * from Ksiazki
+
+/* wywołanie procedury łączącej Autora z Ksiązka */
+GO
+DECLARE @id_a INT;
+EXEC spDodajAutora @imie_autora='Anne-Cath', @nazwisko_autora='Vestly', 
+@id_autora=@id_a OUTPUT;
+SELECT @id_a AS id_autora;
+GO
+select * from Ksiazki
+/*  Wywołanie procedury łączącej autora  z książką*/
+GO
+EXEC spPolaczAutoraZKsiazka @id_ksiazki=24, @id_autora=8;
+SELECT * FROM Autorzy_ksiazki
+
+/*wywołanie procedury spDodajGatunek */
+GO
+DECLARE @id_gat INT
+EXEC spDodajGatunek @nazwa_gatunku='powieść dla dzieci', @id_gatunku=@id_gat OUTPUT
+SELECT @id_gat AS id_gatunku;
+
+/* wywołanie procedury łaczącej Gatunek z książka */
+GO
+EXEC spPolaczGatunekZKsiazka @id_gatunku=1, @id_ksiazki=24
+GO
+select * from Gatunek
+SELECT * FROM Gatunek_ksiazki
