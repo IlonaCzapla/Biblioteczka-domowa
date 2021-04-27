@@ -1,4 +1,4 @@
-DROP DATABASE  Biblioteczka_domowa;
+DROP DATABASE IF EXISTS  Biblioteczka_domowa;
 CREATE DATABASE Biblioteczka_domowa;
 
 GO
@@ -40,7 +40,7 @@ podtytul VARCHAR (200),
 seria VARCHAR (200),
 rok_wydania INT ,
 id_wydawnictwa INT FOREIGN KEY (id_wydawnictwa) REFERENCES Wydawnictwo (id_wydawnictwa),
-isbn VARCHAR(13) UNIQUE
+isbn VARCHAR(13) CONSTRAINT UQ_Ksiazki_ISBN UNIQUE
 );
 
 /*  tworzymy tabele Opis fizyczny  */
@@ -166,7 +166,8 @@ CREATE OR ALTER PROCEDURE spDodajKsiazke
 @tytul VARCHAR(100),
 @podtytul VARCHAR(200),
 @rok_wydania INT,
-@id_wydawnictwa INT,
+@id_wydawnictwa INT OUTPUT,
+@nazwa_wydawnictwa NVARCHAR(50) ,
 @seria varchar(200),
 @id_ksiazki INT OUTPUT
 AS
@@ -176,12 +177,23 @@ BEGIN
 	RAISERROR ('Jest już taka książka w bazie!', 11,1 )
 	RETURN -1
 	END
-	
+	IF EXISTS (SELECT * FROM Wydawnictwo WHERE nazwa_wydawnictwa=@nazwa_wydawnictwa)
+		BEGIN
+		PRINT 'Jest już takie wydawnictwo w bazie'
+		SELECT @id_wydawnictwa=id_wydawnictwa  FROM Wydawnictwo WHERE nazwa_wydawnictwa=@nazwa_wydawnictwa
+		END
+	ELSE
+		BEGIN
+		PRINT 'Nie ma takiego wydawnictwa'
+		INSERT INTO Wydawnictwo (nazwa_wydawnictwa) VALUES (@nazwa_wydawnictwa)
+		SELECT @id_wydawnictwa= SCOPE_IDENTITY()
+		END
+
+
 	INSERT INTO Ksiazki (isbn, tytul, podtytul, rok_wydania, id_wydawnictwa) 
 	VALUES (@isbn, @tytul, @podtytul, @rok_wydania, @id_wydawnictwa)
 	SELECT  @id_ksiazki =scope_identity ()
 END ;
-
 
 /*tworzenie procedury spDodaj Autora, która sprawdza, czy taki autor już jest w bazie i zwraca id autora */
 
@@ -193,17 +205,17 @@ CREATE OR ALTER PROCEDURE spDodajAutora
 AS
 BEGIN
 	IF EXISTS (SELECT * FROM Autor WHERE imie_autora=@imie_autora AND nazwisko_autora=@nazwisko_autora)
-	BEGIN
-	PRINT 'Jest już taki autor w bazie'
-	SELECT @id_autora= id_autora FROM Autor WHERE imie_autora=@imie_autora AND nazwisko_autora=@nazwisko_autora
-	END
+		BEGIN
+		PRINT 'Jest już taki autor w bazie'
+		SELECT @id_autora= id_autora FROM Autor WHERE imie_autora=@imie_autora AND nazwisko_autora=@nazwisko_autora
+		END
 	ELSE
-	BEGIN
-	PRINT 'Nie ma takiego autora w bazie'
-	INSERT INTO Autor (imie_autora, nazwisko_autora)
-	VALUES (@imie_autora, @nazwisko_autora)
-	SELECT @id_autora = SCOPE_IDENTITY()
-	END
+		BEGIN
+		PRINT 'Nie ma takiego autora w bazie'
+		INSERT INTO Autor (imie_autora, nazwisko_autora)
+		VALUES (@imie_autora, @nazwisko_autora)
+		SELECT @id_autora = SCOPE_IDENTITY()
+		END
 END;
 
 
@@ -262,7 +274,7 @@ BEGIN
 	IF EXISTS (SELECT * FROM Wydawnictwo WHERE nazwa_wydawnictwa=@nazwa_wydawnictwa)
 		BEGIN
 		PRINT 'Jest już takie wydawnictwo w bazie'
-		SELECT @nazwa_wydawnictwa= nazwa_wydawnictwa FROM Wydawnictwo WHERE nazwa_wydawnictwa=@nazwa_wydawnictwa
+		SELECT @id_wydawnictwa=id_wydawnictwa  FROM Wydawnictwo WHERE nazwa_wydawnictwa=@nazwa_wydawnictwa
 		END
 	ELSE
 		BEGIN
@@ -272,15 +284,18 @@ BEGIN
 		END
 END;
 
-
+GO
 
 /*  wywołanie procedury spDodaj ksiazke */
 GO
-DECLARE @id_k INT;
-EXEC spDodajKsiazke @isbn='9788310129079', 
+DECLARE @id_k INT, @id_wyd int
+EXEC spDodajKsiazke @isbn='9788310129070', 
 @tytul='Z mucha na luzie ćwiczymy buzie, czyli zabawy logopedyczne dla dzieci',  @rok_wydania=2015, @id_ksiazki=@id_k OUTPUT, 
-@podtytul= NULL , @id_wydawnictwa=8, @seria=null;
+@podtytul= NULL , @seria=null, @nazwa_wydawnictwa= 'Nasza księgarnia', @id_wydawnictwa=@id_wyd output;
 SELECT @id_k AS id_ksiazki;
+
+select * from Ksiazki
+select * from Wydawnictwo
 
 /* wywołanie procedury spDodajAutora */
 GO
@@ -377,12 +392,14 @@ END;
 GO
 -- Spr id wydawnicta
 SELECT * FROM Wydawnictwo
+
+
 /* Dodanie książki, wywołanie procedury DodajKsiazke */
 GO
-DECLARE @id_k INT;
+DECLARE @id_k INT, @id_wyd int;
 EXEC spDodajKsiazke @isbn='9788363696030', 
 @tytul='8+2 i ciężarówka',  @rok_wydania=2015, @id_ksiazki=@id_k OUTPUT, 
-@podtytul= NULL , @id_wydawnictwa=10, @seria ='8+2'
+@podtytul= NULL , @nazwa_wydawnictwa='Dwie siostry', @seria='8+2', @id_wydawnictwa=@id_wyd output
 SELECT @id_k AS id_ksiazki;
 
 -- spr czy książka się dodała
@@ -413,3 +430,5 @@ EXEC spPolaczGatunekZKsiazka @id_gatunku=1, @id_ksiazki=24
 GO
 select * from Gatunek
 SELECT * FROM Gatunek_ksiazki
+select * from Ksiazki
+SELECT * FROM PodstawoweDaneKsiazki
