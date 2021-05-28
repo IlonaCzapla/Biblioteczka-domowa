@@ -410,7 +410,7 @@ SELECT @id_wyd AS id_wydawnictwa;
 
 
 /* tworzenie procedury spDodajDane, 
-ktora dodaje ksiazke,autora, wydawnictwo badz informuje, że taka ksiązka juz jest w bazie. 
+ktora dodaje ksiazke,autora, wydawnictwo, gatunek badz informuje, że taka ksiązka juz jest w bazie. 
 Jak wprowadzamy błędne dane wychodzimy z procedury nie dodając nic.*/
 
 GO
@@ -425,7 +425,9 @@ CREATE OR ALTER PROCEDURE spDodajDane
 @id_ksiazki INT OUTPUT,
 @imie_autora VARCHAR(20),
 @nazwisko_autora VARCHAR(50),
-@id_autora INT OUTPUT
+@id_autora INT OUTPUT,
+@nazwa_gatunku VARCHAR (50),
+@id_gatunku INT OUTPUT
 AS
 BEGIN
 	IF EXISTS (SELECT * FROM Ksiazki WHERE isbn=@isbn)
@@ -464,6 +466,22 @@ BEGIN TRAN
 	SELECT  @id_ksiazki =scope_identity ()
 
 	INSERT INTO Autorzy_ksiazki (id_ksiazki, id_autora) VALUES (@id_ksiazki, @id_autora)
+
+
+	IF EXISTS (SELECT * FROM Gatunek WHERE nazwa_gatunku=@nazwa_gatunku)
+		BEGIN
+		PRINT 'Jest już taki gatunek w bazie'
+		SELECT @id_gatunku=id_gatunku FROM Gatunek WHERE nazwa_gatunku=@nazwa_gatunku 
+		END
+	ELSE
+		BEGIN
+		PRINT 'Nie ma takiego gatunku w bazie'
+		INSERT INTO Gatunek (nazwa_gatunku) VALUES (@nazwa_gatunku)
+		SELECT @id_gatunku= SCOPE_IDENTITY()
+		END
+	
+	INSERT INTO Gatunek_ksiazki(id_gatunku, id_ksiazki) VALUES (@id_gatunku, @id_ksiazki)
+
 COMMIT
 END TRY
 BEGIN CATCH
@@ -478,16 +496,16 @@ END ;
 --wywołac procedure DodajDane
 
 GO
-DECLARE @id_k INT, @id_wyd INT, @id_a INT 
+DECLARE @id_k INT, @id_wyd INT, @id_a INT, @id_g int
 EXEC spDodajDane @isbn='9788375510300', 
 @tytul='Opowiadania z piaskownicy',  @rok_wydania=2017,
 @id_ksiazki=@id_k OUTPUT, 
 @podtytul= NULL , @seria=null, @nazwa_wydawnictwa= 'BIS',@imie_autora='Renata',@nazwisko_autora= 'Piątkowska',
-@id_autora=@id_a OUTPUT, @id_wydawnictwa=@id_wyd output;
-SELECT @id_k AS id_ksiazki, @id_a as id_autora, @id_wyd as id_wydawnictwa;
+@id_autora=@id_a OUTPUT, @id_wydawnictwa=@id_wyd output,  @nazwa_gatunku='opowiadanie',
+@id_gatunku=@id_g output;
+SELECT @id_k AS id_ksiazki, @id_a as id_autora, @id_wyd as id_wydawnictwa, @id_g as id_gatunku;
 
 select * from Gatunek
-exec spPolaczGatunekZKsiazka @id_gatunku=2, @id_ksiazki=24
 
 
 /*--wyświelenie  podstawowych danych o książkach */
